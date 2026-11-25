@@ -1,0 +1,83 @@
+name: HRRR Trends
+
+# Started on demand: "Run workflow" on GitHub, or the buttons in the Command Center.
+# hours = 0: build once from the newest complete HRRR run. hours > 0: keep going and
+# rebuild whenever a new run is complete (one job lasts at most ~5.25 h; longer runs
+# hand over to a fresh job). run = YYYY-MM-DDTHH: show that past run and the 5 before it.
+on:
+  workflow_dispatch:
+    inputs:
+      hours:
+        description: "Keep updating for this many hours (0 = once, up to 12)"
+        required: false
+        default: "0"
+      run:
+        description: "A past day instead: newest HRRR run to show, UTC, e.g. 2026-04-17T17"
+        required: false
+        default: ""
+      regions:
+        description: "Regions (blank = all): plains,midwest,iowa,s_plains,c_plains,n_plains,ohio_valley,southeast"
+        required: false
+        default: ""
+
+permissions:
+  contents: write     # push the site to gh-pages
+  actions: write      # hand a long live run over to the next job
+
+concurrency:
+  group: hrrr-trends
+  cancel-in-progress: false
+
+jobs:
+  maps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: System libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libeccodes0 libgeos-dev libproj-dev
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install Python packages
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Make the maps
+        env:
+          OUT: ${{ github.workspace }}/site
+          GITHUB_TOKEN: ${{ github.token }}
+          HRRR_TRENDS_PUBLISH: bash ${{ github.workspace }}/publish.sh
+          HOURS: ${{ github.event.inputs.hours }}
+          RUN: ${{ github.event.inputs.run }}
+          REGIONS: ${{ github.event.inputs.regions }}
+        run: |
+          ARGS=(--out "$OUT" --workers 3)
+          if [ -n "$REGIONS" ]; then ARGS+=(--regions "$REGIONS"); fi
+          if [ -n "$RUN" ]; then
+            python -W ignore run.py --run "$RUN" "${ARGS[@]}"
+          else
+            H=$(python -c "print(max(0.0, min(float('${HOURS:-0}' or 0), 12.0)))")
+            THIS=$(python -c "print(min($H, 5.25))")
+            echo "LEFT=$(python -c "print(round($H - $THIS, 2))")" >> "$GITHUB_ENV"
+            if [ "$THIS" = "0.0" ]; then
+              python -W ignore run.py "${ARGS[@]}"
+            else
+              python -W ignore run.py --live --hours "$THIS" "${ARGS[@]}"
+            fi
+          fi
+
+      - name: Hand over to a fresh job (long live runs)
+        if: ${{ github.event.inputs.run == '' && env.LEFT != '' && env.LEFT != '0' && env.LEFT != '0.0' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run trends.yml --ref "${GITHUB_REF_NAME}" -f hours="$LEFT" -f regions="${{ github.event.inputs.regions }}"

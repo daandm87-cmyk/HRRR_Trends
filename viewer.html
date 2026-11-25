@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HRRR Trends</title>
+<style>
+:root{--navy:#1f2e3a;--navy2:#283c4b;--navy3:#2f4658;--line:#3a5168;--deep:#172430;
+--gold:#f1c40f;--ink:#d9d9d9;--muted:#aab6c0}
+*{box-sizing:border-box}
+body{margin:0;background:var(--deep);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{background:var(--navy);border-bottom:3px solid var(--gold);padding:10px 16px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+h1{margin:0;font-size:22px;letter-spacing:.04em;color:var(--gold);font-weight:800}
+.sub{color:var(--muted);font-size:13px}
+#regions{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
+button{background:var(--navy2);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:5px 10px;
+font:inherit;font-size:13px;cursor:pointer}
+button:hover{border-color:var(--gold)}
+.on{background:var(--gold)!important;color:var(--navy)!important;border-color:var(--gold)!important;font-weight:700}
+main{display:grid;grid-template-columns:260px 1fr;gap:14px;padding:14px;max-width:1500px;margin:0 auto}
+aside{display:flex;flex-direction:column;gap:4px}
+.group{color:var(--gold);font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin:10px 2px 2px}
+#modes{display:flex;flex-direction:column;gap:4px}
+#modes button{text-align:left}
+.run{display:flex;align-items:center;gap:8px;padding:5px 8px;border:1px solid var(--line);border-radius:8px;
+background:var(--navy2);cursor:pointer;user-select:none}
+.run.off{opacity:.4}
+.run .sw{width:22px;height:12px;border-radius:3px;flex:none;border:2px solid}
+.run .nm{font-weight:700;font-size:13px;color:#fff}
+.run .info{margin-left:auto;font-size:12px;color:var(--muted);text-align:right}
+.run.flipping{outline:2px solid var(--gold)}
+#legend{display:none;flex-wrap:wrap;gap:3px;align-items:center;font-size:12px;color:var(--muted)}
+#legend span.c{width:26px;height:14px;border-radius:3px;display:inline-block;text-align:center;font-size:11px;line-height:14px;color:#fff;font-weight:700}
+#stack{position:relative;width:100%;border-radius:10px;overflow:hidden;border:1px solid var(--line);background:#f4f2ee}
+#stack img{display:block;width:100%}
+#stack img.layer,#stack img#lines{position:absolute;inset:0;height:100%}
+#badge{position:absolute;top:10px;left:10px;padding:4px 10px;border-radius:8px;font-weight:800;font-size:15px;
+background:rgba(255,255,255,.92);color:#1d2a35;border:3px solid #000;display:none}
+#empty{position:absolute;top:10px;left:50%;transform:translateX(-50%);padding:6px 12px;border-radius:8px;
+background:rgba(23,36,48,.85);color:#fff;font-size:13.5px;display:none;max-width:90%;text-align:center}
+.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 10px}
+#slider{flex:1;min-width:180px;accent-color:var(--gold)}
+#time{font-weight:700;color:#fff;min-width:250px}
+.note{color:var(--muted);font-size:12.5px;margin-top:10px}
+#timing{margin-top:12px;overflow-x:auto}
+#timing table{border-collapse:separate;border-spacing:2px;font-size:12px}
+#timing th{color:var(--muted);font-weight:600;padding:0 2px;cursor:pointer;white-space:nowrap}
+#timing th.cur{color:var(--gold)}
+#timing td{width:30px;min-width:30px;height:22px;text-align:center;border-radius:4px;cursor:pointer;color:#fff;font-weight:700}
+#timing td.na{color:#6b7c8a;font-weight:400;cursor:default}
+#timing td.cur{outline:2px solid var(--gold)}
+#timing td.rn{width:auto;text-align:left;padding-right:6px;cursor:default;white-space:nowrap}
+select.msel{display:none;width:100%;background:var(--navy2);color:#fff;border:1px solid var(--gold);border-radius:8px;
+padding:8px 10px;font:inherit;font-size:15px}
+@media (max-width:820px){main{grid-template-columns:1fr;padding:10px;gap:8px}
+#regions{display:none}select.msel{display:block}header{padding:8px 12px}h1{font-size:19px}.sub{display:none}
+#time{min-width:0;width:100%;order:-1}#modes{flex-direction:row;flex-wrap:wrap}
+main{display:flex;flex-direction:column}section{display:contents}
+.bar{order:1}#stack{order:2}aside{order:3}#timing{order:4}#note{order:5}}
+</style>
+</head>
+<body>
+<header>
+  <h1>HRRR Trends</h1>
+  <span class="sub">Run to run: where the last 6 HRRR runs put rotating storms</span>
+  <div id="regions"></div>
+  <select id="rsel" class="msel" aria-label="Region"></select>
+</header>
+<main>
+  <aside>
+    <div class="group">View</div>
+    <div id="modes">
+      <button data-m="all">All runs on top of each other</button>
+      <button data-m="flip">Flip through the runs</button>
+      <button data-m="agree">Agreement between runs</button>
+    </div>
+    <div class="group" id="runs-h">Runs</div>
+    <div id="runs" style="display:flex;flex-direction:column;gap:4px"></div>
+    <div id="legend"></div>
+  </aside>
+  <section>
+    <div class="bar">
+      <button id="allh">All hours</button>
+      <button id="prev">◀</button>
+      <input id="slider" type="range" min="1" max="1" value="1">
+      <button id="next">▶</button>
+      <button id="play">▶ Loop hours</button>
+      <span id="time"></span>
+    </div>
+    <div id="stack">
+      <img id="base" alt="map">
+      <div id="layers"></div>
+      <img id="lines" alt="">
+      <div id="badge"></div>
+      <div id="empty"></div>
+    </div>
+    <div id="timing"></div>
+    <div class="note" id="note"></div>
+  </section>
+</main>
+<script>
+let meta = null, region = null, win = 0, mode = "all", hidden = new Set(), flip = null, flipIdx = 0, timer = null;
+const q = new URLSearchParams(location.hash.slice(1));
+const $ = s => document.querySelector(s);
+
+function entry() { return meta.layers[region][meta.windows[win].id]; }
+function runInfo(n, isAll) {
+  if (n === null || n === undefined) return "ends before this";
+  if (n === 0) return "none";
+  return isAll ? "tracks" : n + (n === 1 ? " storm" : " storms");
+}
+function setLayers(srcs) {
+  const L = $("#layers");
+  while (L.children.length > srcs.length) L.lastChild.remove();
+  while (L.children.length < srcs.length) { const i = document.createElement("img"); i.className = "layer"; i.alt = ""; L.appendChild(i); }
+  srcs.forEach((s, k) => { const i = L.children[k]; if (i.getAttribute("src") !== s) i.src = s; });
+}
+function draw() {
+  if (!meta) return;
+  const w = meta.windows[win], e = entry(), isAll = w.id === "all";
+  const dir = `img/${meta.set}/${region}/${w.id}/`;
+  $("#base").src = `img/base/${region}.png`;
+  $("#lines").src = `img/base/${region}_lines.png`;
+  let srcs = [], empty = "";
+  const name = meta.regions.find(r => r.id === region).name;
+  const span = isAll ? "in these hours" : "during this hour";
+  if (mode === "agree") {
+    if (e.agree) srcs = [dir + "agree.png"];
+    else empty = `No run has a rotating storm in ${name} ${span}.`;
+  } else if (mode === "flip") {
+    const r = meta.runs[flipIdx], n = e.runs[r.id];
+    if (n) srcs = [dir + r.id + ".png"];
+    else empty = n === null ? `The ${r.name} doesn't reach this hour.` : `The ${r.name} has no rotating storm in ${name} ${span}.`;
+  } else {
+    for (let k = meta.runs.length - 1; k >= 0; k--) {        // oldest first, newest on top
+      const r = meta.runs[k];
+      if (!hidden.has(r.id) && e.runs[r.id]) srcs.push(dir + r.id + ".png");
+    }
+    if (!srcs.length) empty = meta.runs.some(r => e.runs[r.id]) ? "All runs with storms here are switched off."
+      : `No run has a rotating storm in ${name} ${span}.`;
+  }
+  setLayers(srcs);
+  $("#empty").style.display = empty ? "block" : "none"; $("#empty").textContent = empty;
+  const b = $("#badge");
+  if (mode === "flip") {
+    const r = meta.runs[flipIdx];
+    b.style.display = "block"; b.style.borderColor = r.color;
+    b.textContent = r.name + (flipIdx === 0 ? " (newest)" : `  ·  ${flipIdx} h older`);
+  } else b.style.display = "none";
+  // run list
+  document.querySelectorAll(".run").forEach(div => {
+    const r = meta.runs.find(x => x.id === div.dataset.id), n = e.runs[r.id];
+    div.querySelector(".info").textContent = runInfo(n, isAll);
+    div.classList.toggle("off", mode === "all" ? hidden.has(r.id) : false);
+    div.classList.toggle("flipping", mode === "flip" && meta.runs[flipIdx].id === r.id);
+  });
+  $("#legend").style.display = mode === "agree" ? "flex" : "none";
+  $("#runs").style.display = mode === "agree" ? "none" : "flex";
+  $("#runs-h").textContent = mode === "agree" ? `Runs with a storm within ${meta.radius_mi} miles` : "Runs";
+  document.querySelectorAll("#modes button").forEach(x => x.classList.toggle("on", x.dataset.m === mode));
+  $("#time").textContent = w.label;
+  $("#allh").classList.toggle("on", isAll);
+  if (!isAll) $("#slider").value = win;
+  timing();
+  history.replaceState(null, "", `#r=${region}&m=${mode}&w=${w.id}`);
+}
+function timing() {
+  const hrs = meta.windows.slice(1), e = meta.layers[region];
+  let mx = 1;
+  meta.runs.forEach(r => hrs.forEach(w => { mx = Math.max(mx, e[w.id].runs[r.id] || 0); }));
+  let h = "<table><tr><th style='text-align:left;cursor:default'>Storms per hour</th>";
+  hrs.forEach((w, k) => h += `<th data-w="${k + 1}" class="${win === k + 1 ? "cur" : ""}">${w.short}</th>`);
+  h += "</tr>";
+  meta.runs.forEach(r => {
+    h += `<tr><td class="rn"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${r.color};margin-right:5px"></span>${r.name}</td>`;
+    hrs.forEach((w, k) => {
+      const n = e[w.id].runs[r.id], cur = win === k + 1 ? " cur" : "";
+      if (n === null || n === undefined) h += `<td class="na${cur}">–</td>`;
+      else {
+        const a = n ? 0.25 + 0.75 * n / mx : 0;
+        h += `<td data-w="${k + 1}" class="${cur}" style="background:rgba(106,81,163,${a.toFixed(2)})">${n || ""}</td>`;
+      }
+    });
+    h += "</tr>";
+  });
+  $("#timing").innerHTML = h + "</table>";
+  $("#timing").querySelectorAll("[data-w]").forEach(c => c.onclick = () => { stopLoop(); win = +c.dataset.w; draw(); });
+}
+function build() {
+  const R = $("#regions"); R.innerHTML = "";
+  meta.regions.forEach(r => {
+    const b = document.createElement("button"); b.textContent = r.name;
+    b.className = r.id === region ? "on" : ""; b.onclick = () => { region = r.id; build(); draw(); }; R.appendChild(b);
+  });
+  $("#rsel").innerHTML = meta.regions.map(r => `<option value="${r.id}"${r.id === region ? " selected" : ""}>${r.name}</option>`).join("");
+  $("#rsel").onchange = () => { region = $("#rsel").value; build(); draw(); };
+  const RU = $("#runs"); RU.innerHTML = "";
+  meta.runs.forEach((r, k) => {
+    const d = document.createElement("div"); d.className = "run"; d.dataset.id = r.id;
+    d.title = `${r.started}; forecast ends ${r.ends}`;
+    d.innerHTML = `<span class="sw" style="border-color:${r.color};background:${r.color}${k ? "80" : "52"}"></span>` +
+      `<span class="nm">${r.name}${k === 0 ? " · newest" : ""}</span><span class="info"></span>`;
+    d.onclick = () => {
+      if (mode === "flip") { flipIdx = k; stopFlip(); draw(); return; }
+      hidden.has(r.id) ? hidden.delete(r.id) : hidden.add(r.id); draw();
+    };
+    RU.appendChild(d);
+  });
+  $("#legend").innerHTML = meta.agree_colors.map((c, k) => `<span class="c" style="background:${c}">${k + 1}</span>`).join("") +
+    `<span style="margin-left:4px">of ${meta.runs.length} runs</span>` +
+    `<div style="width:100%;margin-top:6px">Black outline: the newest run's storms.</div>`;
+  $("#slider").min = 1; $("#slider").max = meta.windows.length - 1;
+  $("#note").innerHTML = "Each shape is where one HRRR run has a rotating updraft (2-5 km updraft helicity of " +
+    `${meta.threshold} m²/s² or more) during the hour. Storms in the same place run after run: a forecast you can lean on. ` +
+    "Tracks that jump around or come and go: low confidence. Times are the hour each storm track covers. " +
+    "Click a run to switch it off; click an hour in the table to jump there.<br>" +
+    (meta.live ? "Live: rebuilt when each new HRRR run is complete (about 1.5 h after it starts). " : "") +
+    "Updated " + new Date(meta.updated).toLocaleString() + ".";
+}
+function stopFlip() { if (flip) { clearInterval(flip); flip = null; } }
+function startFlip() {
+  stopFlip(); flipIdx = meta.runs.length - 1; draw();
+  let hold = 0;
+  flip = setInterval(() => {
+    if (flipIdx === 0 && hold++ < 1) return;               // linger on the newest run
+    hold = 0; flipIdx = flipIdx === 0 ? meta.runs.length - 1 : flipIdx - 1; draw();
+  }, 1100);
+}
+function stopLoop() { if (timer) { clearInterval(timer); timer = null; $("#play").textContent = "▶ Loop hours"; } }
+document.querySelectorAll("#modes button").forEach(b => b.onclick = () => {
+  mode = b.dataset.m; if (mode === "flip") startFlip(); else stopFlip(); draw();
+});
+$("#allh").onclick = () => { stopLoop(); win = 0; draw(); };
+$("#slider").oninput = e => { stopLoop(); win = +e.target.value; draw(); };
+$("#prev").onclick = () => { stopLoop(); win = Math.max(1, (win || 1) - 1); draw(); };
+$("#next").onclick = () => { stopLoop(); win = Math.min(meta.windows.length - 1, win + 1); draw(); };
+$("#play").onclick = () => {
+  if (timer) { stopLoop(); return; }
+  stopFlip(); if (mode === "flip") mode = "all";
+  $("#play").textContent = "❚❚ Stop";
+  timer = setInterval(() => { win = win >= meta.windows.length - 1 ? 1 : win + 1; draw(); }, 900);
+};
+document.addEventListener("keydown", e => {
+  if (e.key === "ArrowLeft") $("#prev").click();
+  if (e.key === "ArrowRight") $("#next").click();
+});
+async function load(first) {
+  const r = await fetch("trends.json?" + Date.now()); const m = await r.json();
+  if (!first && meta && m.set === meta.set && m.updated === meta.updated) return;
+  const keepWin = meta ? meta.windows[win].id : q.get("w");
+  meta = m;
+  if (first) {
+    region = q.get("r") && meta.regions.some(x => x.id === q.get("r")) ? q.get("r") : meta.regions[0].id;
+    mode = ["all", "flip", "agree"].includes(q.get("m")) ? q.get("m") : "all";
+  }
+  const k = meta.windows.findIndex(w => w.id === keepWin);
+  win = k >= 0 ? k : 0;
+  build(); if (mode === "flip") startFlip(); else draw();
+}
+load(true);
+setInterval(() => { if (meta && meta.live) load(false); }, 120000);
+</script>
+</body>
+</html>
